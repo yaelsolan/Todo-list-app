@@ -8,7 +8,7 @@ def todo_list():
     c.execute("SELECT id, task FROM todo WHERE status LIKE '1'")
     result = c.fetchall()
     c.close()
-    output = template ('make_table' , rows=result)
+    output = template ('make_table', rows=result)
     return output
     return str(result)
 debug(True)
