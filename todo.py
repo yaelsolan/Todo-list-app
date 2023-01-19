@@ -1,52 +1,59 @@
 import sqlite3
 from bottle import route, run, debug, template, request, static_file
 
-@route('/todo')
-def todo_list():
+def db_connect():
     conn = sqlite3.connect('todo.db')
-    c = conn.cursor()
-    c.execute("SELECT id, task FROM todo WHERE status LIKE '1'")
-    result = c.fetchall()
-    c.close()
+    print("Opened database successfully")
+    return conn
+
+def db_close(conn):
+    conn.close()
+    print("Close database successfully")
+
+def handle_db(view):
+    def wrapper(*args, **kwargs):
+        conn = db_connect()
+        cursor = conn.cursor()
+        result = view(cursor, *args, **kwargs)
+        conn.commit()
+        db_close(conn)
+        return result
+    return wrapper
+
+
+@route('/todo')
+@handle_db
+def todo_list(cursor):
+    cursor.execute("SELECT id, task FROM todo WHERE status LIKE '1'")
+    result = cursor.fetchall()
     output = template ('make_table', rows=result)
-    return output
-    return str(result)
     return template('make_table', rows=result)
     
 @route('/new', method='GET')
-def new_item():
+@handle_db
+def new_item(cursor):
 
     new = request.GET.task.strip()
 
-    conn = sqlite3.connect('todo.db')
-    c = conn.cursor()
-
-    c.execute("INSERT INTO todo (task,status) VALUES (?,?)", (new, 1))
+    cursor.execute("INSERT INTO todo (task,status) VALUES (?,?)", (new, 1))
     new_id = c.lastrowid
-
-    conn.commit()
-    c.close()
 
     return '<p>The new task was inserted into the database, the ID is %s</p>' % new_id 
  
     if request.GET.save:
 
         new = request.GET.task.strip()
-        conn = sqlite3.connect('todo.db')
-        c = conn.cursor()
 
-        c.execute("INSERT INTO todo (task,status) VALUES (?,?)", (new,1))
+        cursor.execute("INSERT INTO todo (task,status) VALUES (?,?)", (new,1))
         new_id = c.lastrowid
-
-        conn.commit()
-        c.close()
 
         return '<p>The new task was inserted into the database, the ID is %s</p>' % new_id
     else:
         return template('new_task.tpl')
         
 @route('/edit/<no:int>', method='GET')
-def edit_item(no):
+@handle_db
+def edit_item(cursor, no):
 
     if request.GET.save:
         edit = request.GET.task.strip()
@@ -57,27 +64,19 @@ def edit_item(no):
         else:
             status = 0
 
-        conn = sqlite3.connect('todo.db')
-        c = conn.cursor()
-        c.execute("UPDATE todo SET task = ?, status = ? WHERE id LIKE ?", (edit, status, no))
-        conn.commit()
+        cursor.execute("UPDATE todo SET task = ?, status = ? WHERE id LIKE ?", (edit, status, no))
 
         return '<p>The item number %s was successfully updated</p>' % no
     else:
-        conn = sqlite3.connect('todo.db')
-        c = conn.cursor()
-        c.execute("SELECT task FROM todo WHERE id LIKE ?", (str(no),))
-        cur_data = c.fetchone()
+        cursor.execute("SELECT task FROM todo WHERE id LIKE ?", (str(no),))
+        cur_data = cur.fetchone()
 
         return template('edit_task', old=cur_data, no=no)    
         
 @route('/item<item:re:[0-9]+>')
-def show_item(item):
-    conn = sqlite3.connect('todo.db')
-    c = conn.cursor()
-    c.execute("SELECT task FROM todo WHERE id LIKE ?", (item,))
-    result = c.fetchall()
-    c.close()
+def show_item(curor, item):
+    cursor.execute("SELECT task FROM todo WHERE id LIKE ?", (item,))
+    result = cursor.fetchall()
     if not result:
         return 'This item number does not exist!'
     else:
@@ -89,4 +88,3 @@ def help():
            
 debug(True)
 run(reloader=True)
-
